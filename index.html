@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image-to-Story (Vision-LLM)</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+    }
+
+    header {
+      padding: 1rem 1.25rem;
+      background: #0f172a;
+      color: #fff;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 2rem auto;
+      padding: 0 1rem 3rem;
+    }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 1rem;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, .06);
+      background: #fff;
+    }
+
+    .row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .col {
+      flex: 1 1 320px;
+      min-width: 320px;
+    }
+
+    label {
+      font-weight: 600;
+    }
+
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      padding: .75rem;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+
+    input[type="file"] {
+      padding: .5rem 0;
+    }
+
+    button {
+      border: 0;
+      background: #2563eb;
+      color: #fff;
+      padding: .75rem 1rem;
+      border-radius: 999px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #334155;
+    }
+
+    figure {
+      margin: 0;
+    }
+
+    img#preview {
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      display: none;
+    }
+
+    img#preview.loaded {
+      display: block;
+    }
+
+    .preview-placeholder {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 3rem 1rem;
+      text-align: center;
+      color: #94a3b8;
+      background: #f8fafc;
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .preview-placeholder.hidden {
+      display: none;
+    }
+
+    .muted {
+      color: #cecece;
+      font-size: .9rem;
+    }
+    .muted-white {
+      color: #8b8b8b;
+      font-size: .9rem;
+    }
+
+    .output {
+      white-space: pre-wrap;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 1rem;
+      min-height: 160px;
+    }
+
+    .badge {
+      font-size: .75rem;
+      background: #e2e8f0;
+      border-radius: 999px;
+      padding: .2rem .6rem;
+    }
+
+    footer {
+      color: #475569;
+      padding: 2rem 1rem;
+      text-align: center;
+    }
+
+    code.inline {
+      background: #f1f5f9;
+      padding: .1rem .35rem;
+      border-radius: .35rem;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Image → Children’s Fable (Vision-LLM via Ollama)</h1>
+    <div class="muted">Drop in an image, and the app will ask a local vision-language model to write a short fable with
+      a title and a moral.</div>
+  </header>
+
+  <main>
+    <section class="card" style="margin-bottom: 1rem;">
+      <div class="row">
+        <div class="col">
+          <label for="image">1) Upload an image</label>
+          <input id="image" type="file" accept="image/*" />
+          <figure>
+            <div id="placeholder" class="preview-placeholder">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>No image selected</span>
+            </div>
+            <img id="preview" alt="Image preview" />
+          </figure>
+          <p class="muted-white">Your image is processed locally in the browser and sent to <code
+              class="inline">http://localhost:11434/api/chat</code>.</p>
+        </div>
+        <div class="col">
+          <label for="model">2) Pick a model</label>
+          <select id="model">
+            <option value="llama3.2-vision">llama3.2-vision</option>
+            <option value="llava:latest">llava:latest</option>
+            <option value="bakllava">bakllava</option>
+            <option value="minicpm-v">minicpm-v</option>
+            <option value="gemma2:2b">gemma2:2b (if vision-capable build available)</option>
+          </select>
+
+          <label for="prompt" style="margin-top: .75rem; display:block;">3) Prompt</label>
+          <textarea id="prompt" rows="9">You are a kind storyteller. Look at the image and write a gentle children’s fable in about 120–160 words.
+Include:
+- A short, catchy title
+- 3–5 short paragraphs
+- A one-line “Moral:” at the end
+Keep language simple. Don’t mention the camera or “image”.</textarea>
+
+          <div style="display:flex; gap:.5rem; margin-top: .75rem;">
+            <button id="run">Generate Story</button>
+            <button class="secondary" id="clear">Clear</button>
+          </div>
+
+          <p class="muted-white" style="margin-top:.5rem;">
+            If your browser blocks the request (CORS), start Ollama with origins enabled:<br />
+            <code class="inline">OLLAMA_ORIGINS=*&nbsp;ollama&nbsp;serve</code>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem;">
+        <span class="badge">Output</span>
+        <span id="status" class="muted-white"></span>
+      </div>
+      <div id="out" class="output"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div>Built for “Assignment 3: Constructing a Large Language Model Web Application”.</div>
+  </footer>
+
+  <script>
+    const fileInput = document.getElementById('image');
+    const previewImg = document.getElementById('preview');
+    const out = document.getElementById('out');
+    const statusEl = document.getElementById('status');
+
+    let imageB64 = null;
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (evt) {
+        previewImg.src = evt.target.result;
+        previewImg.classList.add('loaded');
+        document.getElementById('placeholder').classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+
+      imageB64 = await toBase64(file);
+    });
+
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = (e) => reject(e);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById('clear').addEventListener('click', () => {
+      out.textContent = '';
+      statusEl.textContent = '';
+      previewImg.src = '';
+      previewImg.classList.remove('loaded');
+      document.getElementById('placeholder').classList.remove('hidden');
+      fileInput.value = '';
+      imageB64 = null;
+    });
+
+    document.getElementById('run').addEventListener('click', async () => {
+      const model = document.getElementById('model').value;
+      const prompt = document.getElementById('prompt').value.trim();
+      out.textContent = '';
+      statusEl.textContent = 'Contacting Ollama…';
+
+      if (!imageB64) {
+        statusEl.textContent = 'Please upload an image first.';
+        return;
+      }
+
+      try {
+        // Try 127.0.0.1 first (works if server is bound only to IPv4), then localhost.
+        const endpointCandidates = [
+          'http://127.0.0.1:11434/api/chat',
+          'http://localhost:11434/api/chat'
+        ];
+
+        let lastErr = null, res = null;
+        for (const ep of endpointCandidates) {
+          try {
+            res = await fetch(ep, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  {
+                    role: 'user',
+                    content: prompt,
+                    images: [imageB64]
+                  }
+                ],
+                stream: false
+              })
+            });
+            if (res && res.ok) { break; }
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+
+        if (!res || !res.ok) {
+          const text = res ? await res.text() : (lastErr ? String(lastErr) : 'no response');
+          throw new Error('HTTP ' + (res ? res.status : 'no response') + ': ' + text);
+        }
+
+        const data = await res.json();
+        const msg = data?.message?.content || data?.response || JSON.stringify(data, null, 2);
+        out.textContent = msg;
+        statusEl.textContent = 'Done.';
+      } catch (err) {
+        statusEl.textContent = 'Error';
+        out.textContent = 'Failed to contact Ollama: ' + err.message + '\n' +
+          `Troubleshooting:
+• Ensure Ollama is running (try: ollama serve)
+• Pull a vision model first (e.g., ollama pull llama3.2-vision)
+• Allow browser access: set OLLAMA_ORIGINS=* before starting the server
+• If your model doesn’t support images, switch to a known vision model.
+• If localhost fails, 127.0.0.1 is attempted automatically.`;
+      }
+    });
+  </script>
+</body>
+
+</html>
