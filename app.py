@@ -9,10 +9,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-st.title("🔬 Children's Fable Generator")
-
-st.warning("⚠️ Make sure Ollama is running with: OLLAMA_ORIGINS=* ollama serve")
-
 html_file_path = "index.html"
 if os.path.exists(html_file_path):
     with open(html_file_path, 'r', encoding='utf-8') as file:
